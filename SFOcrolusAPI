@@ -1,0 +1,123 @@
+webservice static String uploadPDFToBook(Blob file_body, String file_name, Integer bookPk)
+    {
+        // Pull in Ocrolus service info from Custom Setting
+        String createBookEndpoint = Ocrolus_Custom_Settings__c.getInstance().Ocrolus_API_Enpoint_URL__c + 'book/upload';
+        String api_key = Ocrolus_Custom_Settings__c.getInstance().API_Key__c;
+        
+        
+        // See http://enreeco.blogspot.com/2013/01/salesforce-apex-post-mutipartform-data.html for info on
+        // code/sending out multipart/form-data requests
+        
+        // Create "Boundary"
+        String boundary = '----------------------------741e90d31eff';
+        
+        
+        // Create "pk" portions of request body
+        // Create pk Header
+        String pkHeader = '--' + boundary 
+            			  + '\nContent-Disposition: form-data; name="book_uuid";';
+        
+        // Create pk Footer
+        String pkFooter = '--'+boundary+'--';
+        
+        // base64 encode the pk Header
+        String pkHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkHeader+'\r\n\r\n'));
+        while(pkHeaderEncoded.endsWith('='))
+        {
+            pkHeader+=' ';
+            pkHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkHeader+'\r\n\r\n'));
+        }
+        
+        // Create pk Body
+        String pkBodyEncoded = EncodingUtil.base64Encode(Blob.valueOf(String.valueOf(bookPk)));
+        
+        Blob pkBodyBlob = null;
+        String pkLast4Bytes = pkBodyEncoded.substring(pkBodyEncoded.length()-4,pkBodyEncoded.length());
+        
+        // Create combined pk Body portion
+        if(pkLast4Bytes.endsWith('==')) 
+        {
+            pkLast4Bytes = pkLast4Bytes.substring(0,2) + '0K';
+            pkBodyEncoded = pkBodyEncoded.substring(0,pkBodyEncoded.length()-4) + pkLast4Bytes;
+            String pkFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkFooter));
+            pkBodyBlob = EncodingUtil.base64Decode(pkHeaderEncoded+pkBodyEncoded);
+        } else if(pkLast4Bytes.endsWith('=')) {
+            pkLast4Bytes = pkLast4Bytes.substring(0,3) + 'N';
+            pkBodyEncoded = pkBodyEncoded.substring(0,pkBodyEncoded.length()-4) + pkLast4Bytes;
+            pkFooter = '\n' + pkFooter;
+            String pkFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkFooter));
+            pkBodyBlob = EncodingUtil.base64Decode(pkHeaderEncoded+pkBodyEncoded);              
+        } 
+        else 
+        {
+            // Prepend the CR LF to the footer
+            pkBodyBlob = EncodingUtil.base64Decode(pkHeaderEncoded+pkBodyEncoded);  
+        }
+        
+        
+        // Create "upload" portion of request body
+        // Create upload Header
+        String uploadHeader = '--' + boundary
+            				 + '\nContent-Disposition: form-data; name="upload"; filename="'+file_name+'";'
+            				 + '\nContent-Type: application/octet-stream';
+ 
+        // Create upload Footer
+        String uploadFooter = '--'+boundary+'--';             
+        
+        // base64 encode the upload Header
+        String uploadHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(uploadHeader+'\r\n\r\n'));
+        while(uploadHeaderEncoded.endsWith('='))
+        {
+            uploadHeader+=' ';
+            uploadHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(uploadHeader+'\r\n\r\n'));
+        }
+        
+        // Create upload Body
+        String uploadBodyEncoded = EncodingUtil.base64Encode(file_body);
+        Blob uploadBodyBlob = null;
+        String uploadLast4Bytes = uploadBodyEncoded.substring(uploadBodyEncoded.length()-4,uploadBodyEncoded.length());
+              
+        // GW: replacement section to get rid of padding without corrupting data
+        if(uploadLast4Bytes.endsWith('==')) 
+        {
+            uploadLast4Bytes = uploadLast4Bytes.substring(0,2) + '0K';
+            String uploadFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(uploadFooter));
+            uploadBodyBlob = EncodingUtil.base64Decode(uploadHeaderEncoded+uploadBodyEncoded+uploadFooterEncoded);
+        } else if(uploadLast4Bytes.endsWith('=')) {
+            uploadLast4Bytes = uploadLast4Bytes.substring(0,3) + 'N';
+            uploadBodyEncoded = uploadBodyEncoded.substring(0,uploadBodyEncoded.length()-4) + uploadLast4Bytes;
+            uploadFooter = '\n' + uploadFooter;
+            String uploadFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(uploadFooter));
+            uploadBodyBlob = EncodingUtil.base64Decode(uploadHeaderEncoded+uploadBodyEncoded+uploadFooterEncoded);              
+        } 
+        else 
+        {
+            // Prepend the CR LF to the footer
+            uploadFooter = '\r\n' + uploadFooter;
+            String uploadFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(uploadFooter));
+            uploadBodyBlob = EncodingUtil.base64Decode(uploadHeaderEncoded+uploadBodyEncoded+uploadFooterEncoded);  
+        }
+  
+        
+        // Combine pk and upload Bodies
+        String bodyBlobAsHex = EncodingUtil.convertToHex(pkBodyBlob) + EncodingUtil.convertToHex(uploadBodyBlob);  // Need to convert to Hex, then back to Blob to combine
+        Blob bodyBlob = EncodingUtil.convertFromHex(bodyBlobAsHex);
+        
+        
+        // Make callout
+        Http http = new Http();
+        HttpRequest httpReq = new HttpRequest();
+        httpReq.setHeader('Content-Type','multipart/form-data; boundary='+boundary);
+        httpReq.setHeader('Content-Length', String.valueof(bodyBlob));
+        httpReq.setHeader('Authorization', 'Basic ' + api_key);
+        httpReq.setMethod('POST');
+        httpReq.setEndpoint(createBookEndpoint);
+        httpReq.setBodyAsBlob(bodyBlob);
+        httpReq.setTimeout(120000);
+        HTTPResponse httpRes = http.send(httpReq);
+        System.debug('Request: ' + httpReq.getBody());
+        System.debug('Response: ' + httpRes.getBody());
+        
+        return httpRes.getBody();
+
+    }
