@@ -15,7 +15,7 @@ webservice static String uploadPDFToBook(Blob file_body, String file_name, Integ
         // Create "pk" portions of request body
         // Create pk Header
         String pkHeader = '--' + boundary 
-            			  + '\nContent-Disposition: form-data; name="book_uuid";';
+            			  + '\nContent-Disposition: form-data; name="pk";';
         
         // Create pk Footer
         String pkFooter = '--'+boundary+'--';
