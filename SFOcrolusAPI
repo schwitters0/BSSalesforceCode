@@ -1,10 +1,10 @@
-webservice static String uploadPDFToBook(Blob file_body, String file_name, Integer bookPk)
+webservice static String uploadPDFToBook(Blob file_body, String file_name, String uuid)
     {
         // Pull in Ocrolus service info from Custom Setting
         String createBookEndpoint = Ocrolus_Custom_Settings__c.getInstance().Ocrolus_API_Enpoint_URL__c + 'book/upload';
         String api_key = Ocrolus_Custom_Settings__c.getInstance().API_Key__c;
         
-        
+       
         // See http://enreeco.blogspot.com/2013/01/salesforce-apex-post-mutipartform-data.html for info on
         // code/sending out multipart/form-data requests
         
@@ -12,52 +12,52 @@ webservice static String uploadPDFToBook(Blob file_body, String file_name, Integ
         String boundary = '----------------------------741e90d31eff';
         
         
-        // Create "pk" portions of request body
-        // Create pk Header
-        String pkHeader = '--' + boundary 
-            			  + '\nContent-Disposition: form-data; name="pk";';
+        // Create "uuid" portions of request body
+        // Create uuid Header
+        String uuidHeader = '--' + boundary 
+            			  + '\nContent-Disposition: form-data; name="uuid";';
         
-        // Create pk Footer
-        String pkFooter = '--'+boundary+'--';
+        // Create uuid Footer
+        String uuidFooter = '--'+boundary+'--';
         
-        // base64 encode the pk Header
-        String pkHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkHeader+'\r\n\r\n'));
-        while(pkHeaderEncoded.endsWith('='))
+        // base64 encode the uuid Header
+        String uuidHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(uuidHeader+'\r\n\r\n'));
+        while(uuidHeaderEncoded.endsWith('='))
         {
-            pkHeader+=' ';
-            pkHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkHeader+'\r\n\r\n'));
+            uuidHeader+=' ';
+            uuidHeaderEncoded = EncodingUtil.base64Encode(Blob.valueOf(uuidHeader+'\r\n\r\n'));
         }
         
-        // Create pk Body
-        String pkBodyEncoded = EncodingUtil.base64Encode(Blob.valueOf(String.valueOf(bookPk)));
+        // Create uuid Body
+        String uuidBodyEncoded = EncodingUtil.base64Encode(Blob.valueOf(String.valueOf(uuid)));
         
-        Blob pkBodyBlob = null;
-        String pkLast4Bytes = pkBodyEncoded.substring(pkBodyEncoded.length()-4,pkBodyEncoded.length());
+        Blob uuidBodyBlob = null;
+        String uuidLast4Bytes = uuidBodyEncoded.substring(uuidBodyEncoded.length()-4,uuidBodyEncoded.length());
         
-        // Create combined pk Body portion
-        if(pkLast4Bytes.endsWith('==')) 
+        // Create combined uuid Body portion
+        if(uuidLast4Bytes.endsWith('==')) 
         {
-            pkLast4Bytes = pkLast4Bytes.substring(0,2) + '0K';
-            pkBodyEncoded = pkBodyEncoded.substring(0,pkBodyEncoded.length()-4) + pkLast4Bytes;
-            String pkFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkFooter));
-            pkBodyBlob = EncodingUtil.base64Decode(pkHeaderEncoded+pkBodyEncoded);
-        } else if(pkLast4Bytes.endsWith('=')) {
-            pkLast4Bytes = pkLast4Bytes.substring(0,3) + 'N';
-            pkBodyEncoded = pkBodyEncoded.substring(0,pkBodyEncoded.length()-4) + pkLast4Bytes;
-            pkFooter = '\n' + pkFooter;
-            String pkFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(pkFooter));
-            pkBodyBlob = EncodingUtil.base64Decode(pkHeaderEncoded+pkBodyEncoded);              
+            uuidLast4Bytes = uuidLast4Bytes.substring(0,2) + '0K';
+            uuidBodyEncoded = uuidBodyEncoded.substring(0,uuidBodyEncoded.length()-4) + uuidLast4Bytes;
+            String uuidFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(uuidFooter));
+            uuidBodyBlob = EncodingUtil.base64Decode(uuidHeaderEncoded+uuidBodyEncoded);
+        } else if(uuidLast4Bytes.endsWith('=')) {
+            uuidLast4Bytes = uuidLast4Bytes.substring(0,3) + 'N';
+            uuidBodyEncoded = uuidBodyEncoded.substring(0,uuidBodyEncoded.length()-4) + uuidLast4Bytes;
+            uuidFooter = '\n' + uuidFooter;
+            String uuidFooterEncoded = EncodingUtil.base64Encode(Blob.valueOf(uuidFooter));
+            uuidBodyBlob = EncodingUtil.base64Decode(uuidHeaderEncoded+uuidBodyEncoded);              
         } 
         else 
         {
             // Prepend the CR LF to the footer
-            pkBodyBlob = EncodingUtil.base64Decode(pkHeaderEncoded+pkBodyEncoded);  
+            uuidBodyBlob = EncodingUtil.base64Decode(uuidHeaderEncoded+uuidBodyEncoded);  
         }
-        
+              
         
         // Create "upload" portion of request body
         // Create upload Header
-        String uploadHeader = '--' + boundary
+        String uploadHeader = '\n--' + boundary
             				 + '\nContent-Disposition: form-data; name="upload"; filename="'+file_name+'";'
             				 + '\nContent-Type: application/octet-stream';
  
@@ -99,8 +99,8 @@ webservice static String uploadPDFToBook(Blob file_body, String file_name, Integ
         }
   
         
-        // Combine pk and upload Bodies
-        String bodyBlobAsHex = EncodingUtil.convertToHex(pkBodyBlob) + EncodingUtil.convertToHex(uploadBodyBlob);  // Need to convert to Hex, then back to Blob to combine
+        // Combine uuid and upload bodies
+        String bodyBlobAsHex = EncodingUtil.convertToHex(uuidBodyBlob) + EncodingUtil.convertToHex(uploadBodyBlob);  // Need to convert to Hex, then back to Blob to combine
         Blob bodyBlob = EncodingUtil.convertFromHex(bodyBlobAsHex);
         
         
